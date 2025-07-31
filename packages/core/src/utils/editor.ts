@@ -199,7 +199,7 @@ export async function openDiff(
         execSync(command, {
           stdio: 'inherit',
           encoding: 'utf8',
-        });
+        }).trim();
         break;
       }
 
