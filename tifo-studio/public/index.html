@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tifo Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">TIFO<span>STUDIO</span></div>
+    <nav>
+      <button id="btnNew">New</button>
+      <button id="btnSample">Sample</button>
+      <span class="sep"></span>
+      <button id="btnSave" title="Save to the local server (projects/ folder)">Save</button>
+      <button id="btnOpen">Open</button>
+      <button id="btnImport">Import JSON</button>
+      <button id="btnExportJson">Download JSON</button>
+      <input type="file" id="fileImport" accept=".json,application/json" hidden />
+      <span class="sep"></span>
+      <button id="btnScript">Script → Scenes</button>
+      <button id="btnProject">Project &amp; Teams</button>
+      <span class="sep"></span>
+      <button id="btnSrt">Export .srt</button>
+      <button id="btnVideo" class="primary">Export Video</button>
+      <a href="guide.html" target="_blank" class="link">How it's made ↗</a>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <aside class="left panel">
+      <div class="panel-head">Scenes <span id="totalTime" class="muted"></span></div>
+      <ol id="sceneList" class="scenes"></ol>
+      <div class="btn-grid">
+        <button id="scAddPitch" title="New pitch scene">+ Pitch</button>
+        <button id="scAddCard" title="New title / illustration card">+ Card</button>
+        <button id="scCont" title="New scene starting where this one ends">Continue ▸</button>
+        <button id="scDup">Duplicate</button>
+        <button id="scUp">↑</button>
+        <button id="scDown">↓</button>
+        <button id="scDel" class="danger">Delete</button>
+      </div>
+      <div class="help">
+        <b>Workflow</b>
+        <ol>
+          <li>Write the script → split into scenes.</li>
+          <li>Record/upload voiceover per scene, “Fit to audio”.</li>
+          <li>Place players (formations), move the playhead, drag players to keyframe motion.</li>
+          <li>Add arrows / zones / labels timed to the words.</li>
+          <li>Drag a camera frame to zoom in.</li>
+          <li>Export video.</li>
+        </ol>
+      </div>
+    </aside>
+
+    <section class="center">
+      <div class="toolbar">
+        <div class="tools" id="tools">
+          <button data-tool="select" title="Select / move (V)">⬚ Select</button>
+          <button data-tool="home" title="Home player (H)"><i class="dot home"></i> Home</button>
+          <button data-tool="away" title="Away player (A)"><i class="dot away"></i> Away</button>
+          <button data-tool="ball" title="Ball (B)">● Ball</button>
+          <button data-tool="pass" title="Pass arrow — dashed (P)">⇢ Pass</button>
+          <button data-tool="run" title="Run arrow (R)">➜ Run</button>
+          <button data-tool="dribble" title="Dribble arrow — wavy (D)">〰 Dribble</button>
+          <button data-tool="line" title="Plain line (L)">— Line</button>
+          <button data-tool="zone" title="Rectangle zone (Z)">▭ Zone</button>
+          <button data-tool="ellipse" title="Ellipse zone (E)">◯ Area</button>
+          <button data-tool="text" title="Text label (T)">T Text</button>
+          <button data-tool="camera" title="Drag a frame to set a camera keyframe (C)">🎥 Camera</button>
+        </div>
+        <div class="tools right">
+          <select id="formSel"></select>
+          <select id="formTeam"><option value="home">Home</option><option value="away">Away</option></select>
+          <button id="formInsert">Insert XI</button>
+          <label class="chk"><input type="checkbox" id="previewCam" checked /> Camera view</label>
+          <button id="btnUndo" title="Undo (Ctrl+Z)">↶</button>
+          <button id="btnRedo" title="Redo (Ctrl+Shift+Z)">↷</button>
+        </div>
+      </div>
+
+      <div class="stagewrap"><canvas id="stage" width="1920" height="1080"></canvas></div>
+
+      <div class="timeline">
+        <button id="btnPlay" title="Play scene (Space)">▶</button>
+        <button id="btnPlayAll" title="Play whole video from this scene">▶▶ All</button>
+        <div class="scrubwrap">
+          <div id="kfTrack" class="kftrack"></div>
+          <input type="range" id="scrub" min="0" max="6" step="0.0333" value="0" />
+        </div>
+        <span id="timeLabel" class="time">0.00 / 6.00s</span>
+        <button id="btnKey" title="Keyframe selected player/ball at playhead (K)">◆ Key</button>
+        <button id="btnDelKey" title="Delete keyframe at playhead">✕ Key</button>
+        <button id="btnCamReset" title="Camera keyframe: full pitch at playhead">🎥 Full</button>
+      </div>
+    </section>
+
+    <aside class="right panel" id="props"></aside>
+  </main>
+
+  <dialog id="dlgProject">
+    <form method="dialog" class="dlg">
+      <h2>Project &amp; teams</h2>
+      <label class="f"><span>Title</span><input data-pk="title" /></label>
+      <div class="row">
+        <fieldset><legend>Home</legend>
+          <label class="f"><span>Name</span><input data-pk="teams.home.name" /></label>
+          <label class="f"><span>Shirt</span><input type="color" data-pk="teams.home.color" /></label>
+          <label class="f"><span>Number</span><input type="color" data-pk="teams.home.text" /></label>
+        </fieldset>
+        <fieldset><legend>Away</legend>
+          <label class="f"><span>Name</span><input data-pk="teams.away.name" /></label>
+          <label class="f"><span>Shirt</span><input type="color" data-pk="teams.away.color" /></label>
+          <label class="f"><span>Number</span><input type="color" data-pk="teams.away.text" /></label>
+        </fieldset>
+      </div>
+      <label class="chk"><input type="checkbox" data-pk="showCaptions" /> Burn scene captions into video</label>
+      <fieldset><legend>Background music</legend>
+        <div id="musicInfo" class="muted"></div>
+        <input type="file" id="musicFile" accept="audio/*" />
+        <label class="f"><span>Volume</span><input type="range" min="0" max="1" step="0.01" data-pk="musicVolume" /></label>
+        <button type="button" id="musicClear">Remove music</button>
+      </fieldset>
+      <div class="actions"><button class="primary">Done</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="dlgScript">
+    <form method="dialog" class="dlg wide">
+      <h2>Script → Scenes</h2>
+      <p class="muted">Paste your narration script. Every paragraph (separated by a blank line) becomes a scene, with its duration estimated from word count. Record or upload the real voiceover afterwards and use “Fit to audio”.</p>
+      <textarea id="scriptText" rows="14" placeholder="Paragraph one…&#10;&#10;Paragraph two…"></textarea>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="scriptCarry" checked /> Carry players over from the current scene</label>
+        <label class="chk"><input type="checkbox" id="scriptCaptions" /> Also use text as on-screen caption</label>
+        <label class="f inline"><span>Words / sec</span><input type="number" id="scriptWps" value="2.6" step="0.1" min="1" max="5" /></label>
+      </div>
+      <div class="actions"><button value="cancel">Cancel</button><button id="scriptGo" value="ok" class="primary">Create scenes</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="dlgOpen">
+    <form method="dialog" class="dlg">
+      <h2>Open project</h2>
+      <ul id="openList" class="openlist"></ul>
+      <div class="actions"><button>Close</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="dlgExport">
+    <form method="dialog" class="dlg">
+      <h2>Export video</h2>
+      <p class="muted">Renders 1920×1080 at 30 fps in real time with your voiceover and music mixed in. Keep this tab visible while it records. Chrome/Edge export MP4 (H.264) when supported, otherwise WebM.</p>
+      <label class="f"><span>Quality</span>
+        <select id="expBitrate"><option value="8000000">Good (8 Mbps)</option><option value="16000000" selected>High (16 Mbps)</option><option value="30000000">Max (30 Mbps)</option></select>
+      </label>
+      <progress id="expProgress" value="0" max="1"></progress>
+      <div id="expStatus" class="muted"></div>
+      <div class="actions">
+        <button type="button" id="expCancel">Cancel</button>
+        <button type="button" id="expStart" class="primary">Start export</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
