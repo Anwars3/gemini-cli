@@ -25,12 +25,63 @@ function pickMime() {
   return c.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
 }
 
+// Chrome records fragmented MP4 whose header only states the first fragment's length,
+// so players show e.g. 0:03 for a 5-minute video. Patch the durations in the moov box.
+async function fixMp4Duration(blob, seconds) {
+  if (blob.size > 1.5e9) return blob;
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  const dv = new DataView(buf.buffer);
+  let movieScale = 0;
+  const put = (pos, v1, scale) => {
+    const d = Math.round(seconds * scale);
+    if (v1) dv.setBigUint64(pos, BigInt(d));
+    else dv.setUint32(pos, d);
+  };
+  const walk = (off, end) => {
+    while (off + 8 <= end) {
+      let size = dv.getUint32(off);
+      let hdr = 8;
+      if (size === 1) {
+        size = Number(dv.getBigUint64(off + 8));
+        hdr = 16;
+      } else if (size === 0) size = end - off;
+      if (size < 8) return;
+      const type = String.fromCharCode(...buf.subarray(off + 4, off + 8));
+      const v1 = buf[off + hdr] === 1;
+      const p = off + hdr + 4; // skip version + flags
+      if (type === 'moov' || type === 'trak' || type === 'mdia') walk(off + hdr, off + size);
+      else if (type === 'mvhd') {
+        movieScale = dv.getUint32(p + (v1 ? 16 : 8));
+        put(p + (v1 ? 20 : 12), v1, movieScale);
+      } else if (type === 'mdhd') {
+        put(p + (v1 ? 20 : 12), v1, dv.getUint32(p + (v1 ? 16 : 8)));
+      } else if (type === 'tkhd' && movieScale) {
+        put(p + (v1 ? 24 : 16), v1, movieScale);
+      }
+      off += size;
+    }
+  };
+  try {
+    walk(0, buf.length);
+    return new Blob([buf], { type: blob.type });
+  } catch (e) {
+    console.warn('Could not patch MP4 duration', e);
+    return blob;
+  }
+}
+
 export async function exportVideo({ project, renderer, audio, fps = 30, bitrate = 16e6, onProgress, signal }) {
   if (!window.MediaRecorder) throw new Error('This browser does not support MediaRecorder. Use Chrome or Edge.');
   const total = projectDuration(project);
   await audio.preload(project);
   const ctx = audio.ensure();
   const dest = ctx.createMediaStreamDestination();
+  // Keep the audio track producing (silent) samples. With no voiceover/music the track
+  // would carry no data, and Chrome's recorder then truncates MP4 or writes empty WebM.
+  const keepAlive = ctx.createConstantSource();
+  keepAlive.offset.value = 0;
+  keepAlive.connect(dest);
+  keepAlive.start();
   const frame = (T) => {
     const { si, t } = locate(project, T);
     renderer.draw(project, project.scenes[si], t, { showCaptions: project.showCaptions, useCamera: true });
@@ -47,13 +98,15 @@ export async function exportVideo({ project, renderer, audio, fps = 30, bitrate 
   const t0 = ctx.currentTime + 0.3;
   const nodes = audio.schedule(project, 0, 0, true, dest, t0);
   rec.start(500);
+  const recStart = performance.now();
+  let recEnd = 0;
 
   await new Promise((resolve) => {
     const loop = () => {
       const T = ctx.currentTime - t0;
       if (signal?.aborted || T >= total) {
         frame(Math.max(0, total - 1e-3));
-        setTimeout(() => { rec.stop(); resolve(); }, 250);
+        setTimeout(() => { recEnd = performance.now(); rec.stop(); resolve(); }, 250);
         return;
       }
       frame(Math.max(0, T));
@@ -63,11 +116,13 @@ export async function exportVideo({ project, renderer, audio, fps = 30, bitrate 
     loop();
   });
   await stopped;
-  nodes.forEach((n) => { try { n.stop(); } catch { /* ignore */ } });
+  [...nodes, keepAlive].forEach((n) => { try { n.stop(); } catch { /* ignore */ } });
   vstream.getTracks().forEach((t) => t.stop());
   if (signal?.aborted) return null;
   const type = (mimeType || 'video/webm').split(';')[0];
-  return { blob: new Blob(chunks, { type }), ext: type.includes('mp4') ? 'mp4' : 'webm' };
+  let blob = new Blob(chunks, { type });
+  if (type.includes('mp4')) blob = await fixMp4Duration(blob, (recEnd - recStart) / 1000);
+  return { blob, ext: type.includes('mp4') ? 'mp4' : 'webm' };
 }
 
 const srtTime = (s) => {
