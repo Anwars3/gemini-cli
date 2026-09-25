@@ -4,11 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>How Tifo Videos Are Made</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600&display=swap" />
+  <style>@font-face{font-family:Oswald;font-weight:500;src:url(fonts/Oswald-Medium.ttf)}@font-face{font-family:Oswald;font-weight:700;src:url(fonts/Oswald-Bold.ttf)}</style>
   <style>
     :root { --bg: #efe8d6; --ink: #1d2621; --muted: #5d665f; --accent: #c8412f; --card: #f8f3e6; --line: #d6ccb2; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 Inter, system-ui, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
     main { max-width: 860px; margin: 0 auto; padding: 48px 16px 80px; }
     h1, h2, h3 { font-family: Oswald, Impact, sans-serif; text-transform: uppercase; letter-spacing: .5px; line-height: 1.15; }
     h1 { font-size: 46px; margin: 0 0 8px; }
@@ -54,19 +54,19 @@
 
   <h2>2. The production pipeline</h2>
   <div class="step"><b class="n">01</b><b>Research &amp; script.</b> A writer researches the topic (match footage, data from FBref/Opta/StatsBomb, interviews) and writes a 1,000–2,000 word script. Each paragraph is roughly one visual idea.
-    <div class="tool">In the studio: <b>Script → Scenes</b> splits your script into one scene per paragraph with an estimated duration.</div></div>
+    <div class="tool">In the studio: <b>Script → Scenes</b> splits your script into one scene per paragraph, and can voice every scene straight away.</div></div>
   <div class="step"><b class="n">02</b><b>Voiceover.</b> The script is recorded first, cleanly, in a quiet room. The recording locks the timing of the whole video.
-    <div class="tool">In the studio: per scene, <b>● Record mic</b> (the animation plays while you talk) or <b>Upload audio</b>, then <b>Fit to audio</b>. Free tools: Audacity for recording/cleanup; Piper or other TTS if you don't want to use your own voice.</div></div>
+    <div class="tool">In the studio: <b>🤖 Generate voice</b> uses a free local neural voice (British Piper narrators) and fits each scene to it. Or <b>● Record mic</b> (the animation plays while you talk), or <b>Upload audio</b>, for example from Audacity or ElevenLabs.</div></div>
   <div class="step"><b class="n">03</b><b>Storyboard / animatic.</b> Rough frames for each line of the script: which players, which arrows, where the camera goes.
     <div class="tool">In the studio: rough out each scene with <b>Insert XI</b> and a few arrows, then refine.</div></div>
   <div class="step"><b class="n">04</b><b>Illustration.</b> Illustrators draw player caricatures, crowds, stadiums and title cards in Adobe Illustrator/Photoshop (or Procreate), with layered textures.
-    <div class="tool">In the studio: make a <b>Card</b> scene and add your illustration — it gets a slow push-in and title typography. Free tools: Krita, Inkscape, Photopea.</div></div>
+    <div class="tool">In the studio: a <b>Card</b> scene (title, chapter, quote or lower-third layout) with your illustration. The <b>Illustrated</b> filter turns photos into flat, outlined poster art, and a transparent foreground PNG gets parallax depth. <b>Portraits</b> can go on player discs. Free drawing tools: Krita, Inkscape, Photopea.</div></div>
   <div class="step"><b class="n">05</b><b>Animation.</b> Everything is assembled in Adobe After Effects: player discs keyframed across the board, arrows revealed with <i>Trim Paths</i>, zones scaling in, camera moves, texture overlays.
-    <div class="tool">In the studio: move the playhead, drag players to create keyframes (with easing), set arrow <b>Appears</b>/<b>Draw time</b>, and drag camera frames with the 🎥 tool.</div></div>
+    <div class="tool">In the studio: move the playhead and drag players to create eased keyframes. Arrows draw themselves on. <b>Cover shadows</b>, <b>spotlights</b>, <b>team shapes</b>, <b>trails</b> and <b>distance lines</b> are one click each. The camera zooms, <b>tilts into 3D</b> and rotates between keyframes, like Tifo's angled pitch shots. <b>Charts</b> animate stats, and <b>wipe</b> or crossfade transitions join the scenes.</div></div>
   <div class="step"><b class="n">06</b><b>Sound design &amp; music.</b> A subtle music bed under the voice, plus whooshes and crowd sounds.
-    <div class="tool">In the studio: <b>Project &amp; Teams → Background music</b> (auto fades out at the end). Free music: YouTube Audio Library, Pixabay Music.</div></div>
+    <div class="tool">In the studio: automatic <b>sound effects</b> (whooshes on transitions and camera moves, ticks when graphics appear) and <b>background music</b> with a fade-out, both in <b>Project &amp; Teams</b>. Free music: YouTube Audio Library, Pixabay Music.</div></div>
   <div class="step"><b class="n">07</b><b>Export &amp; publish.</b> 1080p H.264 upload, with subtitles and a bold thumbnail.
-    <div class="tool">In the studio: <b>Export Video</b> (1920×1080, 30 fps, voice + music mixed) and <b>Export .srt</b> for YouTube subtitles.</div></div>
+    <div class="tool">In the studio: <b>Export Video</b> gives a frame-accurate MP4 at 1080p, 1440p or 4K, at 30 or 60 fps. <b>📷 Snapshot</b> makes the thumbnail and <b>Subtitles .srt</b> the captions.</div></div>
 
   <h2>3. Recipe for one tactical beat</h2>
   <p>Script line: <i>“The moment the ball goes to the full-back, the winger presses and the striker curves his run to cut off the pass inside.”</i></p>
@@ -75,7 +75,9 @@
     <tr><td>“The moment the ball goes…”</td><td>Dashed pass arrow draws on, ball follows</td><td>Pass tool; set <b>Appears</b> to the time you say “ball”. Keyframe the ball at the start and end of the pass.</td></tr>
     <tr><td>“…the winger presses…”</td><td>Winger runs at the full-back, yellow run arrow</td><td>Playhead to the start → <b>◆ Key</b> the winger; playhead to the end → drag him. Add a Run arrow.</td></tr>
     <tr><td>“…curves his run…”</td><td>Curved arrow, striker moves</td><td>Drag the arrow's middle handle to bend it.</td></tr>
-    <tr><td>(pause)</td><td>Zoom in, shade the trap area</td><td>🎥 Camera: drag a frame around the area; add an Area zone + “THE TRAP” label.</td></tr>
+    <tr><td>(pause)</td><td>Zoom in and tilt, shade the trap area</td><td>🎥 Camera: drag a frame around the area, then set <b>Tilt</b> to about 40°. Add an Area zone and a “THE TRAP” label.</td></tr>
+    <tr><td>“…cut off the pass inside.”</td><td>Show the blocked lane</td><td>◣ Shadow tool: click the striker. His cover shadow points away from the ball automatically.</td></tr>
+    <tr><td>“Watch the full-back…”</td><td>Focus on one player</td><td>◉ Spotlight tool: click the player. Everything else darkens, and the circle follows him.</td></tr>
   </table>
 
   <h2>4. Tips for the Tifo feel</h2>

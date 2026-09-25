@@ -10,12 +10,14 @@ export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const easeInOut = (p) =>
   p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
 export const snapT = (t) => Math.round(t * FPS) / FPS;
+export const CAM_KEYS = ['cx', 'cy', 'zoom', 'tilt', 'rot'];
+export const DEFAULT_CAM = { cx: 52.5, cy: 34, zoom: 1, tilt: 0, rot: 0 };
 
 // ---------- keyframes ----------
 
 export function sampleKF(kf, t, keys = ['x', 'y']) {
   if (!kf || !kf.length) return null;
-  const pick = (k) => Object.fromEntries(keys.map((n) => [n, k[n]]));
+  const pick = (k) => Object.fromEntries(keys.map((n) => [n, k[n] ?? 0]));
   if (t <= kf[0].t) return pick(kf[0]);
   const last = kf[kf.length - 1];
   if (t >= last.t) return pick(last);
@@ -24,7 +26,7 @@ export function sampleKF(kf, t, keys = ['x', 'y']) {
     const b = kf[i + 1];
     if (t >= a.t && t <= b.t) {
       const p = easeInOut((t - a.t) / Math.max(1e-6, b.t - a.t));
-      return Object.fromEntries(keys.map((n) => [n, a[n] + (b[n] - a[n]) * p]));
+      return Object.fromEntries(keys.map((n) => [n, (a[n] ?? 0) + ((b[n] ?? 0) - (a[n] ?? 0)) * p]));
     }
   }
   return pick(last);
@@ -113,7 +115,46 @@ export function handlesFor(o) {
     ];
   }
   if (o.type === 'zone') return [{ k: 'size', x: o.x + o.w, y: o.y + o.h }];
+  if (o.type === 'spot' && !o.pid) return [{ k: 'radius', x: o.x + o.r, y: o.y }];
   return [];
+}
+
+// Shortest duration that still shows all of a scene's animation.
+export function minSceneDuration(sc) {
+  if (sc.kind === 'chart') return 0.3 + parseChart(sc.data).length * 0.12 + 2;
+  if (sc.kind === 'card') return 2.5;
+  let end = 0;
+  for (const o of sc.objects) {
+    if (o.kf) end = Math.max(end, o.kf[o.kf.length - 1].t);
+    end = Math.max(end, (o.in || 0) + (o.dur || 0), o.out ?? 0);
+  }
+  for (const k of sc.camera || []) end = Math.max(end, k.t);
+  return end + 0.8;
+}
+
+export function objPos(scene, id, t) {
+  const o = scene.objects.find((p) => p.id === id);
+  return o?.kf ? sampleKF(o.kf, t) : null;
+}
+
+export function firstBall(scene) {
+  return scene.objects.find((o) => o.type === 'ball');
+}
+
+// "*Label, 7.2" → highlighted row. Accepts comma, tab or semicolon separators.
+export function parseChart(text) {
+  return String(text || '')
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const parts = l.split(/\s*[,;\t]\s*/);
+      let label = parts[0] || '';
+      const hi = label.startsWith('*');
+      if (hi) label = label.slice(1).trim();
+      const raw = (parts[1] || '0').replace(/[^0-9.\-]/g, '');
+      return { label, value: parseFloat(raw) || 0, decimals: (raw.split('.')[1] || '').length, hi };
+    });
 }
 
 export function chainPts(scene, o, t) {
@@ -132,7 +173,7 @@ export function newPitchScene(name = 'Scene') {
   return {
     id: uid(), kind: 'pitch', name, duration: 6, transition: 'cut',
     caption: '', narration: '', audio: null, audioName: '',
-    camera: [{ t: 0, cx: 52.5, cy: 34, zoom: 1 }], objects: [],
+    camera: [{ t: 0, ...DEFAULT_CAM }], objects: [],
   };
 }
 
@@ -140,9 +181,45 @@ export function newCardScene(name = 'Title') {
   return {
     id: uid(), kind: 'card', name, duration: 4, transition: 'fade',
     caption: '', narration: '', audio: null, audioName: '',
-    title: 'Title', subtitle: 'Subtitle', bg: '#e8dfc8', image: null,
-    camera: [{ t: 0, cx: 52.5, cy: 34, zoom: 1 }], objects: [],
+    title: 'Title', subtitle: 'Subtitle', kicker: '', layout: 'title', motion: 'in',
+    bg: '#e8dfc8', image: null, image2: null,
+    camera: [{ t: 0, ...DEFAULT_CAM }], objects: [],
   };
+}
+
+export function newChartScene(name = 'Chart') {
+  return {
+    id: uid(), kind: 'chart', name, duration: 6, transition: 'wipe',
+    caption: '', narration: '', audio: null, audioName: '',
+    title: 'Passes allowed per defensive action', subtitle: 'Lower = more intense press',
+    data: '*Reds, 7.2\nGreens, 9.1\nBlues, 10.4\nWhites, 11.8\nBlacks, 13.5', unit: '', bg: '#e8dfc8',
+    camera: [{ t: 0, ...DEFAULT_CAM }], objects: [],
+  };
+}
+
+// Fill in fields added in later versions so old projects keep working.
+export function migrateProject(p) {
+  p.assets ||= {};
+  p.sfx ??= true;
+  p.sfxVolume ??= 0.5;
+  p.voice ??= '';
+  p.voiceRate ??= 1;
+  for (const sc of p.scenes) {
+    sc.kind ||= 'pitch';
+    sc.transition ||= 'cut';
+    sc.camera = (sc.camera?.length ? sc.camera : [{ t: 0 }]).map((k) => ({ ...DEFAULT_CAM, ...k }));
+    sc.objects ||= [];
+    if (sc.kind === 'card') {
+      sc.layout ||= 'title';
+      sc.motion ||= 'in';
+      sc.kicker ??= '';
+    }
+    if (sc.kind === 'chart') {
+      sc.data ??= '';
+      sc.unit ??= '';
+    }
+  }
+  return p;
 }
 
 export function newProject() {
@@ -157,6 +234,10 @@ export function newProject() {
     music: null,
     musicName: '',
     musicVolume: 0.15,
+    sfx: true,
+    sfxVolume: 0.5,
+    voice: '',
+    voiceRate: 1,
     assets: {},
     scenes: [newCardScene('Intro'), newPitchScene('Scene 1')],
   };
@@ -177,7 +258,13 @@ export const makeText = (text, x, y, tin = 0, size = 3) => ({
   id: uid(), type: 'text', text, x, y, size, color: '#ffffff', in: tin, out: null,
 });
 export const makeChain = (ids, tin = 0) => ({
-  id: uid(), type: 'chain', ids, color: '#ffffff', in: tin, out: null,
+  id: uid(), type: 'chain', ids, color: '#ffffff', fill: false, in: tin, out: null,
+});
+export const makeShadow = (pid, bid, tin = 0) => ({
+  id: uid(), type: 'shadow', pid, bid, len: 14, spread: 30, in: tin, out: null,
+});
+export const makeSpot = (x, y, pid = null, tin = 0) => ({
+  id: uid(), type: 'spot', x, y, r: 7, pid, dim: 0.55, in: tin, out: null,
 });
 
 // "Continue" a scene: new scene whose players/ball start where the old one ended.
@@ -196,11 +283,12 @@ export function continueScene(sc) {
     }
   }
   for (const o of sc.objects) {
-    if (o.type === 'chain' && alphaAt(o, end) > 0 && o.ids.every((id) => keep.has(id))) {
+    const refs = o.type === 'chain' ? o.ids : o.type === 'shadow' ? [o.pid, o.bid] : o.type === 'spot' && o.pid ? [o.pid] : null;
+    if (refs && alphaAt(o, end) > 0 && refs.every((id) => !id || keep.has(id))) {
       n.objects.push({ ...structuredClone(o), in: 0, out: null });
     }
   }
-  n.camera = [{ t: 0, ...sampleKF(sc.camera, end, ['cx', 'cy', 'zoom']) }];
+  n.camera = [{ t: 0, ...sampleKF(sc.camera, end, CAM_KEYS) }];
   return n;
 }
 
@@ -230,13 +318,15 @@ export function sampleProject() {
   const intro = newCardScene('Intro');
   intro.title = 'The High Press';
   intro.subtitle = 'How elite teams win the ball back in seconds';
-  intro.narration = 'Every great pressing team has a plan. It is not chaos, it is choreography.';
+  intro.kicker = 'Tactics explained';
+  intro.narration = 'Every great pressing team has a plan. It is not chaos. It is choreography.';
 
   const s1 = newPitchScene('The trigger');
   s1.duration = 7;
+  s1.transition = 'wipe';
   s1.caption = 'Trigger: the pass out to the full-back';
   s1.narration =
-    'The Blues build from the back. The Reds front three hold a compact line, and wait. The moment the ball goes wide to the full-back, that is the trigger. The winger presses, the striker curves his run to cut off the pass back inside, and the touchline becomes an extra defender.';
+    'The Blues play out from the back, and the Reds wait. The moment the ball goes wide, they pounce. The winger presses, the striker blocks the pass back inside, and the touchline does the rest.';
 
   const away = [['1', 101, 34], ['4', 93, 27], ['5', 93, 41], ['2', 86, 60], ['3', 86, 8], ['6', 79, 30], ['8', 79, 40], ['7', 72, 58], ['11', 72, 10], ['9', 62, 28], ['10', 62, 40]]
     .map(([n, x, y]) => makePlayer('away', n, x, y));
@@ -244,7 +334,7 @@ export function sampleProject() {
   const home = [['1', 14, 34], ['3', 50, 10], ['5', 48, 27], ['4', 48, 41], ['2', 50, 58], ['8', 66, 22], ['6', 64, 34], ['10', 66, 46], ['11', 80, 18], ['9', 80, 33], ['7', 79, 49]]
     .map(([n, x, y]) => (H[n] = makePlayer('home', n, x, y)));
   const A2 = away[3];
-  A2.highlight = true;
+  H['7'].trail = true;
   const ball = makeBall(91.2, 42.6);
   mv(ball, [[1.2, 91.2, 42.6], [2.2, 87.4, 58]]);
   mv(H['9'], [[1.4, 80, 33], [3, 87, 44]]);
@@ -266,13 +356,17 @@ export function sampleProject() {
   const lineLabel = makeText('Pressing line', 80, 12, 0.3, 2.2);
   lineLabel.out = 2.2;
   const zone = makeZone('ellipse', 74, 47, 20, 18, 3.8);
-  const trap = makeText('The trap', 84, 45.5, 4.2, 2.6);
+  const trap = makeText('The trap', 76, 44.5, 4.2, 2.6);
   trap.color = '#f2c14e';
-  s1.objects.push(zone, chain, pass, r7, r9, r10, ...away, ...home, ball, lineLabel, trap);
+  const spot = makeSpot(86, 60, A2.id, 2.2);
+  spot.r = 6;
+  spot.out = 3.9;
+  const shadow9 = makeShadow(H['9'].id, ball.id, 3.1);
+  s1.objects.push(zone, shadow9, chain, pass, r7, r9, r10, ...away, ...home, ball, spot, lineLabel, trap);
   s1.camera = [
-    { t: 0, cx: 52.5, cy: 34, zoom: 1 },
-    { t: 1.6, cx: 60, cy: 36, zoom: 1.15 },
-    { t: 3.4, cx: 80, cy: 46, zoom: 1.9 },
+    { t: 0, cx: 52.5, cy: 34, zoom: 1, tilt: 0, rot: 0 },
+    { t: 1.6, cx: 60, cy: 36, zoom: 1.15, tilt: 0, rot: 0 },
+    { t: 3.6, cx: 80, cy: 47, zoom: 1.7, tilt: 42, rot: 0 },
   ];
 
   const s2 = continueScene(s1);
@@ -280,9 +374,9 @@ export function sampleProject() {
   s2.duration = 6;
   s2.caption = 'Win it high, and the goal is twenty metres away';
   s2.narration =
-    'The full-back is trapped. The Reds win it back, and suddenly they are twenty metres from goal against a defence that is facing the wrong way.';
+    'The full-back is trapped. The ball is won, and suddenly the Reds are twenty metres from goal.';
   const f = (id) => s2.objects.find((o) => o.id === id);
-  f(A2.id).highlight = false;
+  f(shadow9.id).out = 1.2;
   const b2 = f(ball.id);
   mv(b2, [[0.9, 87.4, 58], [1.1, 86, 55.4], [3, 93.4, 46.4], [3.6, 95.8, 40], [4.4, 105.4, 35]]);
   mv(f(H['7'].id), [[1, 84.5, 56.5], [3, 92, 48]]);
@@ -297,23 +391,41 @@ export function sampleProject() {
   const shot = makeArrow('pass', 96.6, 39.4, 105, 35.2, 3.7);
   shot.dur = 0.6;
   shot.color = '#ffffff';
-  const won = makeText('Ball won', 78, 52, 1.1, 2.4);
+  const won = makeText('Ball won', 81, 64, 1.1, 2.4);
   won.color = '#f2c14e';
   won.out = 3.4;
-  s2.objects.unshift(drib, run9, p2, shot);
+  const dist = makeArrow('measure', 92.6, 45.8, 104.6, 34.4, 2.4);
+  dist.dur = 0.5;
+  dist.out = 3.7;
+  s2.objects.unshift(drib, run9, p2, shot, dist);
   s2.objects.push(won);
   s2.camera = [
-    { t: 0, cx: 80, cy: 46, zoom: 1.9 },
-    { t: 3, cx: 90, cy: 44, zoom: 2.1 },
-    { t: 5, cx: 94, cy: 40, zoom: 2.4 },
+    { t: 0, cx: 80, cy: 47, zoom: 1.7, tilt: 42, rot: 0 },
+    { t: 3, cx: 90, cy: 44, zoom: 1.9, tilt: 48, rot: -12 },
+    { t: 5, cx: 94, cy: 40, zoom: 2.1, tilt: 52, rot: -18 },
   ];
+
+  const chart = newChartScene('The numbers');
+  chart.title = 'Passes allowed per defensive action';
+  chart.subtitle = 'Illustrative numbers. Lower = more intense press.';
+  chart.narration = 'The numbers agree. No side allows fewer passes before winning the ball back.';
+
+  const quote = newCardScene('The rule');
+  quote.layout = 'quote';
+  quote.title = 'When we lose the ball, we have five seconds to win it back. After that, we drop and reorganise.';
+  quote.subtitle = 'The five-second rule';
+  quote.transition = 'crossfade';
+  quote.duration = 5.5;
+  quote.narration = 'The rule is simple. Five seconds to win it back.';
 
   const outro = newCardScene('Outro');
   outro.title = 'Tactics, explained';
   outro.subtitle = 'Made with Tifo Studio';
   outro.bg = '#1f2a24';
   outro.duration = 3.5;
+  outro.transition = 'wipe';
+  outro.narration = 'Tactics, explained.';
 
-  p.scenes = [intro, s1, s2, outro];
+  p.scenes = [intro, s1, s2, chart, quote, outro];
   return p;
 }
